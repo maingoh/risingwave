@@ -11,8 +11,17 @@ def _(outer_panels: Panels):
                 panels.subheader(
                     "Streaming Alerts",
                     """[Alert Reference]
-- Too Many Barriers: there are too many uncommitted barriers generated. This means the streaming graph is stuck or under heavy load. Check 'Barrier Latency' panel.
-- Recovery Triggered: cluster recovery is triggered. Check 'Errors by Type' / 'Node Count' panels.
+- Too Many Barriers: there are too many uncommitted barriers generated. This means the streaming graph is stuck.
+  Check the following panels to follow-up:
+  - Streaming Backfill: Check if there's any throughput in the panels, if yes, backfill is in progress. If throughput is high, it could lead to additional pressure on the stream graph.
+  - Storage Alerts: Look at the alerts in the storage section, specifically `Write Stall`. That will cause backpressure and the stream graph being stuck.
+  - Cluster Resource: If Relative CPU or Memory usage is high, it can lead to the stream graph being stuck.
+  - Barrier Latency: Get the latency of the barrier, it should be high.
+  - Streaming Relations: Look at the TopN relations by CPU usage and busy rate. These relations are likely to be the bottleneck.
+  - Streaming Operators by Operator: Look at the alerts in the streaming operators by operator section, the following panels are more likely to be the bottleneck:
+    - Merger Barrier Align: If the merger barrier align is high, it means the merger is not able to align the barriers in time.
+    - Join Amplification: If the join amplification is high, it means the join is not able to process the data in time.
+- Recovery Triggered: cluster recovery is triggered. Check 'Errors by Type' / 'Node Count' panels to find the root cause. Check the error logs as well.
 """,
                     height=5,
                 ),
