@@ -614,7 +614,7 @@ impl HummockVersionReader {
     ) -> StorageResult<Option<O>> {
         let (imms, uncommitted_ssts, committed_version) = read_version_tuple;
 
-        let min_epoch = gen_min_epoch(epoch, read_options.retention_seconds.as_ref());
+        let min_epoch = gen_min_epoch(epoch, read_options.retention_seconds);
         let mut stats_guard = GetLocalMetricsGuard::new(self.state_store_metrics.clone(), table_id);
         let local_stats = &mut stats_guard.local_stats;
         local_stats.found_key = true;
@@ -844,7 +844,7 @@ impl HummockVersionReader {
         let mut factory = ForwardIteratorFactory::default();
         let mut local_stats = StoreLocalStatistic::default();
         let (imms, uncommitted_ssts, committed) = read_version_tuple;
-        let min_epoch = gen_min_epoch(epoch, read_options.retention_seconds.as_ref());
+        let min_epoch = gen_min_epoch(epoch, read_options.retention_seconds);
         self.iter_inner(
             table_key_range,
             epoch,
@@ -892,7 +892,7 @@ impl HummockVersionReader {
         let mut factory = BackwardIteratorFactory::default();
         let mut local_stats = StoreLocalStatistic::default();
         let (imms, uncommitted_ssts, committed) = read_version_tuple;
-        let min_epoch = gen_min_epoch(epoch, read_options.retention_seconds.as_ref());
+        let min_epoch = gen_min_epoch(epoch, read_options.retention_seconds);
         self.iter_inner(
             table_key_range,
             epoch,
