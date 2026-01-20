@@ -21,7 +21,7 @@ use arc_swap::ArcSwap;
 use bytes::Bytes;
 use itertools::Itertools;
 use risingwave_common::array::VectorRef;
-use risingwave_common::catalog::TableId;
+use risingwave_common::catalog::{TableId, TableOption};
 use risingwave_common::dispatch_distance_measurement;
 use risingwave_common::util::epoch::is_max_epoch;
 use risingwave_common_service::{NotificationClient, ObserverManager};
@@ -281,6 +281,7 @@ impl HummockStorageReadSnapshot {
                 key,
                 self.epoch.get_epoch(),
                 self.table_id,
+                self.table_option,
                 read_options,
                 read_version_tuple,
                 on_key_value_fn,
@@ -301,6 +302,7 @@ impl HummockStorageReadSnapshot {
                 key_range,
                 self.epoch.get_epoch(),
                 self.table_id,
+                self.table_option,
                 read_options,
                 read_version_tuple,
             )
@@ -320,6 +322,7 @@ impl HummockStorageReadSnapshot {
                 key_range,
                 self.epoch.get_epoch(),
                 self.table_id,
+                self.table_option,
                 read_options,
                 read_version_tuple,
                 None,
@@ -631,6 +634,7 @@ impl HummockStorage {
 pub struct HummockStorageReadSnapshot {
     epoch: HummockReadEpoch,
     table_id: TableId,
+    table_option: TableOption,
     recent_versions: Arc<ArcSwap<RecentVersions>>,
     hummock_version_reader: HummockVersionReader,
     read_version_mapping: ReadOnlyReadVersionMapping,
@@ -885,6 +889,7 @@ impl StateStore for HummockStorage {
         Ok(HummockStorageReadSnapshot {
             epoch,
             table_id: options.table_id,
+            table_option: options.table_option,
             recent_versions: self.recent_versions.clone(),
             hummock_version_reader: self.hummock_version_reader.clone(),
             read_version_mapping: self.read_version_mapping.clone(),
