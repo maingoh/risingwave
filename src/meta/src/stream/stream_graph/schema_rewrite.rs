@@ -20,6 +20,7 @@ use itertools::Itertools;
 use risingwave_common::catalog::{ColumnCatalog, Field};
 use risingwave_connector::sink::catalog::SinkType;
 use risingwave_pb::catalog::PbTable;
+use risingwave_pb::expr::{ExprNode, expr_node};
 use risingwave_pb::plan_common::{PbColumnCatalog, PbField};
 use risingwave_pb::stream_plan::stream_node::{NodeBody as PbNodeBody, NodeBodyDiscriminants};
 use risingwave_pb::stream_plan::{PbStreamScanType, StreamNode};
@@ -124,8 +125,9 @@ impl PlanRewriter {
 
 /// Default rule set for sink auto schema change rewriting.
 pub static DEFAULT_SINK_SCHEMA_REWRITER: LazyLock<PlanRewriter> = LazyLock::new(|| {
-    let entries: [(NodeBodyDiscriminants, Box<dyn OperatorRule>); 4] = [
+    let entries: [(NodeBodyDiscriminants, Box<dyn OperatorRule>); 5] = [
         (NodeBodyDiscriminants::Sink, Box::new(SinkRule)),
+        (NodeBodyDiscriminants::Project, Box::new(ProjectRule)),
         (NodeBodyDiscriminants::StreamScan, Box::new(StreamScanRule)),
         (NodeBodyDiscriminants::Merge, Box::new(MergeRule)),
         (NodeBodyDiscriminants::BatchPlan, Box::new(BatchPlanRule)),
@@ -338,6 +340,100 @@ impl OperatorRule for StreamScanRule {
             )
             .into());
         };
+        Ok(())
+    }
+}
+
+pub struct ProjectRule;
+
+impl OperatorRule for ProjectRule {
+    fn rewrite(
+        &self,
+        node: &mut StreamNode,
+        change_set: &SinkSchemaChangeSet,
+        _ctx: &RewriteContext<'_>,
+    ) -> MetaResult<()> {
+        let PbNodeBody::Project(project) = node.node_body.as_mut().unwrap() else {
+            return Err(anyhow!(
+                "expected Project node_body, got {}",
+                node.node_body.as_ref().unwrap().discriminant()
+            )
+            .into());
+        };
+
+        let SinkSchemaChangeSet::AddColumns(added_columns) = change_set else {
+            return Err(anyhow!("only support AddColumns in sink auto schema change").into());
+        };
+
+        let [input] = node.input.as_slice() else {
+            return Err(anyhow!(
+                "unsupported Project shape for auto refresh schema: expected 1 input, got {}",
+                node.input.len()
+            )
+            .into());
+        };
+
+        if input.fields.len() < added_columns.len() {
+            return Err(anyhow!(
+                "unexpected Project input schema length for auto refresh schema: input_fields_len={}, added_columns_len={}",
+                input.fields.len(),
+                added_columns.len()
+            )
+            .into());
+        }
+
+        // For ADD COLUMN, the upstream schema is extended at the end. Keep the output schema
+        // consistent by appending passthrough input refs for newly added columns.
+        let added_start = input.fields.len() - added_columns.len();
+        for (i, input_field) in input.fields[added_start..].iter().cloned().enumerate() {
+            let input_idx = (added_start + i) as u32;
+            let data_type = input_field
+                .data_type
+                .clone()
+                .ok_or_else(|| anyhow!("project input field {input_idx} missing data_type"))?;
+
+            project.select_list.push(ExprNode {
+                function_type: expr_node::Type::Unspecified as i32,
+                return_type: Some(data_type),
+                rex_node: Some(expr_node::RexNode::InputRef(input_idx)),
+            });
+            node.fields.push(input_field);
+        }
+
+        Ok(())
+    }
+
+    fn validate(&self, node: &StreamNode) -> MetaResult<()> {
+        let Some(PbNodeBody::Project(project)) = node.node_body.as_ref() else {
+            return Err(anyhow!("expected Project node_body").into());
+        };
+
+        let [input] = node.input.as_slice() else {
+            return Err(anyhow!(
+                "unsupported Project shape for auto refresh schema: expected 1 input, got {}",
+                node.input.len()
+            )
+            .into());
+        };
+
+        let input_fields_len = input.fields.len();
+        let input_refs = project
+            .select_list
+            .iter()
+            .filter_map(|expr| match expr.rex_node.as_ref()? {
+                expr_node::RexNode::InputRef(idx) => Some(*idx),
+                _ => None,
+            })
+            .collect_vec();
+
+        if input_refs.len() != input_fields_len {
+            return Err(anyhow!(
+                "unsupported Project for auto refresh schema: expected {input_fields_len} InputRef expressions, got {}",
+                input_refs.len()
+            )
+            .into());
+        }
+
         Ok(())
     }
 }
