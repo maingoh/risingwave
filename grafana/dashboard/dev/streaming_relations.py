@@ -15,6 +15,15 @@ def _relation_busy_rate_expr(rate_interval: str):
     )
     return relation_busy_rate_with_metadata_expr
 
+def _relation_metric_with_metadata(expr: str) -> str:
+    return (
+        f"label_replace(({expr}), 'id', '$1', 'materialized_view_id', '(.*)')"
+        f"* on (id) group_left (name, type) {metric('relation_info')}"
+    )
+
+def _relation_topk_percent_expr(expr: str) -> str:
+    return f"topk(10, ({_relation_metric_with_metadata(expr)}) * 100)"
+
 def _relation_busy_rate_target(panels: Panels, rate_interval: str):
     return panels.target(
         _relation_busy_rate_expr(rate_interval),
@@ -37,10 +46,69 @@ def _(outer_panels: Panels):
         f"sum(rate({metric('stream_actor_poll_duration')}[$__rate_interval])) by (fragment_id) "
         f"/ on(fragment_id) sum({metric('stream_actor_count')}) by (fragment_id)"
     )
+    idle_duration_expr = (
+        f"sum(rate({metric('stream_actor_idle_duration')}[$__rate_interval])) by (fragment_id) "
+        f"/ on(fragment_id) sum({metric('stream_actor_count')}) by (fragment_id)"
+    )
+    scheduled_duration_expr = (
+        f"sum(rate({metric('stream_actor_scheduled_duration')}[$__rate_interval])) by (fragment_id) "
+        f"/ on(fragment_id) sum({metric('stream_actor_count')}) by (fragment_id)"
+    )
     return [
         outer_panels.row_collapsed(
             "Streaming Relation Metrics",
             [
+                panels.subheader("Overview"),
+                panels.table_info(
+                    "Top Relations by CPU Time",
+                    "Top 10 relations with the highest CPU time rate (%).",
+                    [
+                        panels.table_target(
+                            _relation_topk_percent_expr(
+                                f"{_sum_fragment_metric_by_mv(poll_duration_expr)} / 1000000000"
+                            )
+                        )
+                    ],
+                    ["name", "id", "type", "Value"],
+                    dict.fromkeys(["Time"], True),
+                ),
+                panels.table_info(
+                    "Top Relations by Scheduling Delay",
+                    "Top 10 relations with the highest scheduling delay rate (%).",
+                    [
+                        panels.table_target(
+                            _relation_topk_percent_expr(
+                                f"{_sum_fragment_metric_by_mv(scheduled_duration_expr)} / 1000000000"
+                            )
+                        )
+                    ],
+                    ["name", "id", "type", "Value"],
+                    dict.fromkeys(["Time"], True),
+                ),
+                panels.table_info(
+                    "Top Relations by Idle Time",
+                    "Top 10 relations with the highest idle time rate (%).",
+                    [
+                        panels.table_target(
+                            _relation_topk_percent_expr(
+                                f"{_sum_fragment_metric_by_mv(idle_duration_expr)} / 1000000000"
+                            )
+                        )
+                    ],
+                    ["name", "id", "type", "Value"],
+                    dict.fromkeys(["Time"], True),
+                ),
+                panels.table_info(
+                    "Top Relations by Busy Time",
+                    "Top 10 relations with the highest busy time rate (%).",
+                    [
+                        panels.table_target(
+                            f"topk(10, ({_relation_busy_rate_expr('$__rate_interval')}) * 100)"
+                        )
+                    ],
+                    ["name", "id", "type", "Value"],
+                    dict.fromkeys(["Time"], True),
+                ),
                 panels.subheader("CPU Usage By Relation"),
                 panels.timeseries_percentage(
                     "CPU Usage Per Streaming Job",
