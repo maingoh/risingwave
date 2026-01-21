@@ -60,6 +60,17 @@ def _(outer_panels: Panels):
             [
                 panels.subheader("Overview"),
                 panels.table_info(
+                    "Top Relations by Busy Time",
+                    "Top 10 relations with the highest busy time rate (%).",
+                    [
+                        panels.table_target(
+                            f"topk(10, ({_relation_busy_rate_expr('$__rate_interval')}) * 100)"
+                        )
+                    ],
+                    ["name", "id", "type", "rate"],
+                    dict.fromkeys(["Time"], True),
+                ),
+                panels.table_info(
                     "Top Relations by CPU Time",
                     "Top 10 relations with the highest CPU time rate (%).",
                     [
@@ -69,7 +80,7 @@ def _(outer_panels: Panels):
                             )
                         )
                     ],
-                    ["name", "id", "type", "Value"],
+                    ["name", "id", "type", "rate"],
                     dict.fromkeys(["Time"], True),
                 ),
                 panels.table_info(
@@ -82,7 +93,7 @@ def _(outer_panels: Panels):
                             )
                         )
                     ],
-                    ["name", "id", "type", "Value"],
+                    ["name", "id", "type", "rate"],
                     dict.fromkeys(["Time"], True),
                 ),
                 panels.table_info(
@@ -95,18 +106,7 @@ def _(outer_panels: Panels):
                             )
                         )
                     ],
-                    ["name", "id", "type", "Value"],
-                    dict.fromkeys(["Time"], True),
-                ),
-                panels.table_info(
-                    "Top Relations by Busy Time",
-                    "Top 10 relations with the highest busy time rate (%).",
-                    [
-                        panels.table_target(
-                            f"topk(10, ({_relation_busy_rate_expr('$__rate_interval')}) * 100)"
-                        )
-                    ],
-                    ["name", "id", "type", "Value"],
+                    ["name", "id", "type", "rate"],
                     dict.fromkeys(["Time"], True),
                 ),
                 panels.subheader("CPU Usage By Relation"),
