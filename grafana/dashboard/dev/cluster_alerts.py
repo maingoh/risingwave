@@ -10,7 +10,8 @@ def _(outer_panels: Panels):
             [
                 panels.subheader(
                     "Streaming Alerts",
-                    """[Alert Reference]
+"""[Alert Reference]
+- Recovery Triggered: cluster recovery is triggered. Check 'Errors by Type' / 'Node Count' panels to find the root cause. Check the error logs as well.
 - Too Many Barriers: there are too many uncommitted barriers generated. This means the streaming graph is stuck.
   Check the following panels to follow-up:
   - Streaming Backfill: Check if there's any throughput in the panels, if yes, backfill is in progress. If throughput is high, it could lead to additional pressure on the stream graph.
@@ -21,7 +22,6 @@ def _(outer_panels: Panels):
   - Streaming Operators by Operator: Look at the alerts in the streaming operators by operator section, the following panels are more likely to be the bottleneck:
     - Merger Barrier Align: If the merger barrier align is high, it means the merger is not able to align the barriers in time.
     - Join Amplification: If the join amplification is high, it means the join is not able to process the data in time.
-- Recovery Triggered: cluster recovery is triggered. Check 'Errors by Type' / 'Node Count' panels to find the root cause. Check the error logs as well.
 """,
                     height=5,
                 ),
