@@ -570,3 +570,13 @@ def quantile(f, percentiles):
 def epoch_to_unix_millis(epoch_expr):
     # UNIX_RISINGWAVE_DATE_SEC
     return f"(1617235200000+({epoch_expr} != 0)/65536)"
+
+
+def alert_when(expr: str) -> str:
+    """Return 1 when expr > 0, and drop the series when expr <= 0."""
+    return f"(({expr}) > bool 0) > 0"
+
+
+def alert_threshold(expr: str, threshold, comparator: str = ">=") -> str:
+    """Return 1 when expr compares true against threshold, and drop the series otherwise."""
+    return f"(({expr}) {comparator} bool {threshold}) > 0"
