@@ -30,12 +30,47 @@ def _(outer_panels: Panels):
                     "",
                     [
                         panels.target(
-                            f"{metric('all_barrier_nums')} >= bool 200",
+                            f"{metric('all_barrier_nums')} >= 200",
                             "Too Many Barriers {{database_id}}",
                         ),
                         panels.target(
-                            f"sum(rate({metric('recovery_latency_count')}[$__rate_interval])) > bool 0 + sum({metric('recovery_failure_cnt')}) > bool 0",
+                            f"(sum(rate({metric('recovery_latency_count')}[$__rate_interval])) by (recovery_type) + "
+                            + f"sum(rate({metric('recovery_failure_cnt')}[$__rate_interval])) by (recovery_type)) > 0",
                             "Recovery Triggered {{recovery_type}}",
+                        ),
+                    ],
+                    ["last"],
+                ),
+                panels.subheader(
+                    "Cluster Resource Alerts",
+                    """[Alert Reference]
+- CPU Saturation: the average CPU utilization per core is too high, and the system may be throttled.
+- Unexpected Termination: components are exiting unexpectedly (OOMKilled, Error, etc). Check the termination reasons in the error dashboard.
+""",
+                    height=4,
+                ),
+                panels.timeseries_count(
+                    "Cluster Resource Alerts",
+                    "",
+                    [
+                        panels.target(
+                            f"sum(rate({metric('process_cpu_seconds_total')}[$__rate_interval])) by ({COMPONENT_LABEL}, {NODE_LABEL}) / "
+                            + f"avg({metric('process_cpu_core_num')}) by ({COMPONENT_LABEL}, {NODE_LABEL}) > 0.9",
+                            "CPU Saturation (avg/core) - {{%s}} @ {{%s}}"
+                            % (COMPONENT_LABEL, NODE_LABEL),
+                        ),
+                        panels.target(
+                            '(sum(rate(container_cpu_usage_seconds_total{namespace=~"$namespace",container=~"$component",pod=~"$pod"}[$__rate_interval])) by (namespace, pod)) / '
+                            + '(sum(kube_pod_container_resource_limits{namespace=~"$namespace",pod=~"$pod",container=~"$component", resource="cpu"}) by (namespace, pod)) > 0.9',
+                            "CPU Saturation (k8s limit) - {{namespace}}/{{pod}}",
+                        ),
+                        panels.target(
+                            "changes(("
+                            + 'kube_pod_container_status_last_terminated_timestamp{cluster=~"$cluster",namespace=~"$namespace",pod=~"$pod"} '
+                            + "* on (namespace,pod,container) group_left (reason) "
+                            + 'kube_pod_container_status_last_terminated_reason{cluster=~"$cluster",namespace=~"$namespace",pod=~"$pod",reason!~"Completed"}'
+                            + ")[$__rate_interval]) > 0",
+                            "[{{reason}}] {{container}} {{pod}}",
                         ),
                     ],
                     ["last"],
@@ -53,7 +88,7 @@ def _(outer_panels: Panels):
 - Abnormal Version Size: the size of the version is too large, exceeding the expected 300MB. Check 'Hummock Manager' section in dev dashboard.
 - Abnormal Delta Log Number: the number of delta logs is too large, exceeding the expected 5000. Check 'Hummock Manager' and `Compaction` section in dev dashboard and take care of the type of 'Compaction Success Count', whether the number of trivial-move tasks spiking.
 - Abnormal Pending Event Number: the number of pending events is too large, exceeding the expected 10000000. Check 'Hummock Write' section in dev dashboard and take care of the 'Event handle latency', whether the time consumed exceeds the barrier latency.
-- Abnormal Object Storage Failure: the number of object storage failures is too large, exceeding the expected 50. Check 'Object Storage' section in dev dashboard and take care of the 'Object Storage Failure Rate', whether the rate is too high.
+- Abnormal Object Storage Failure: object storage failures are occurring. Check 'Object Storage' section in dev dashboard and take care of the 'Object Storage Failure Rate', whether the rate is too high.
 """,
                     height=10,
                 ),
@@ -62,50 +97,53 @@ def _(outer_panels: Panels):
                     "",
                     [
                         panels.target(
-                            f"(({metric('storage_current_version_id')} - {metric('storage_checkpoint_version_id')}) >= bool 100) + "
-                            + f"(({metric('storage_current_version_id')} - {metric('storage_min_pinned_version_id')}) >= bool 100)",
-                            "Lagging Version",
+                            f"({metric('storage_current_version_id')} - {metric('storage_checkpoint_version_id')}) >= 100",
+                            "Lagging Version (checkpoint)",
+                        ),
+                        panels.target(
+                            f"({metric('storage_current_version_id')} - {metric('storage_min_pinned_version_id')}) >= 100",
+                            "Lagging Version (pinned)",
                         ),
                         panels.target(
                             f"sum(label_replace({metric('storage_level_total_file_size')}, 'L0', 'L0', 'level_index', '.*_L0') unless "
-                            + f"{metric('storage_level_total_file_size')}) by (L0) >= bool 52428800",
+                            + f"{metric('storage_level_total_file_size')}) by (L0) >= 52428800",
                             "Lagging Compaction",
                         ),
                         panels.target(
-                            f"{metric('storage_stale_object_count')} >= bool 200",
+                            f"{metric('storage_stale_object_count')} >= 200",
                             "Lagging Vacuum",
                         ),
                         panels.target(
-                            f"{metric('state_store_meta_cache_usage_ratio')} >= bool 1.1",
+                            f"{metric('state_store_meta_cache_usage_ratio')} >= 1.1",
                             "Abnormal Meta Cache Memory",
                         ),
                         panels.target(
-                            f"{metric('state_store_block_cache_usage_ratio')} >= bool 1.1",
+                            f"{metric('state_store_block_cache_usage_ratio')} >= 1.1",
                             "Abnormal Block Cache Memory",
                         ),
                         panels.target(
-                            f"{metric('state_store_uploading_memory_usage_ratio')} >= bool 0.7",
+                            f"{metric('state_store_uploading_memory_usage_ratio')} >= 0.7",
                             "Abnormal Uploading Memory Usage",
                         ),
                         panels.target(
-                            f"{metric('storage_write_stop_compaction_groups')} > bool 0",
-                            "Write Stall",
+                            f"{metric('storage_write_stop_compaction_groups')} > 0",
+                            "Write Stall (group {{compaction_group_id}})",
                         ),
                         panels.target(
-                            f"{metric('storage_version_size')} >= bool 314572800",
+                            f"{metric('storage_version_size')} >= 314572800",
                             "Abnormal Version Size",
                         ),
                         panels.target(
-                            f"{metric('storage_delta_log_count')} >= bool 5000",
+                            f"{metric('storage_delta_log_count')} >= 5000",
                             "Abnormal Delta Log Number",
                         ),
                         panels.target(
-                            f"{metric('state_store_event_handler_pending_event')} >= bool 10000000",
+                            f"{metric('state_store_event_handler_pending_event')} >= 10000000",
                             "Abnormal Pending Event Number",
                         ),
                         panels.target(
-                            f"{metric('object_store_failure_count')} >= bool 50",
-                            "Abnormal Object Storage Failure",
+                            f"sum(rate({metric('object_store_failure_count')}[$__rate_interval])) by (type) > 0",
+                            "Abnormal Object Storage Failure ({{type}})",
                         ),
                     ],
                     ["last"],
