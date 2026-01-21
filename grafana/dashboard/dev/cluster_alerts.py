@@ -30,12 +30,12 @@ def _(outer_panels: Panels):
                     "",
                     [
                         panels.target(
-                            f"{metric('all_barrier_nums')} >= 200",
+                            f"({metric('all_barrier_nums')} >= bool 200) > 0",
                             "Too Many Barriers {{database_id}}",
                         ),
                         panels.target(
-                            f"(sum(rate({metric('recovery_latency_count')}[$__rate_interval])) by (recovery_type) + "
-                            + f"sum(rate({metric('recovery_failure_cnt')}[$__rate_interval])) by (recovery_type)) > 0",
+                            f"((sum(rate({metric('recovery_latency_count')}[$__rate_interval])) by (recovery_type) + "
+                            + f"sum(rate({metric('recovery_failure_cnt')}[$__rate_interval])) by (recovery_type)) > bool 0) > 0",
                             "Recovery Triggered {{recovery_type}}",
                         ),
                     ],
@@ -54,22 +54,22 @@ def _(outer_panels: Panels):
                     "",
                     [
                         panels.target(
-                            f"sum(rate({metric('process_cpu_seconds_total')}[$__rate_interval])) by ({COMPONENT_LABEL}, {NODE_LABEL}) / "
-                            + f"avg({metric('process_cpu_core_num')}) by ({COMPONENT_LABEL}, {NODE_LABEL}) > 0.9",
+                            f"((sum(rate({metric('process_cpu_seconds_total')}[$__rate_interval])) by ({COMPONENT_LABEL}, {NODE_LABEL}) / "
+                            + f"avg({metric('process_cpu_core_num')}) by ({COMPONENT_LABEL}, {NODE_LABEL})) > bool 0.9) > 0",
                             "CPU Saturation (avg/core) - {{%s}} @ {{%s}}"
                             % (COMPONENT_LABEL, NODE_LABEL),
                         ),
                         panels.target(
-                            '(sum(rate(container_cpu_usage_seconds_total{namespace=~"$namespace",container=~"$component",pod=~"$pod"}[$__rate_interval])) by (namespace, pod)) / '
-                            + '(sum(kube_pod_container_resource_limits{namespace=~"$namespace",pod=~"$pod",container=~"$component", resource="cpu"}) by (namespace, pod)) > 0.9',
+                            '(((sum(rate(container_cpu_usage_seconds_total{namespace=~"$namespace",container=~"$component",pod=~"$pod"}[$__rate_interval])) by (namespace, pod)) / '
+                            + '(sum(kube_pod_container_resource_limits{namespace=~"$namespace",pod=~"$pod",container=~"$component", resource="cpu"}) by (namespace, pod))) > bool 0.9) > 0',
                             "CPU Saturation (k8s limit) - {{namespace}}/{{pod}}",
                         ),
                         panels.target(
-                            "changes(("
+                            "(changes(("
                             + 'kube_pod_container_status_last_terminated_timestamp{cluster=~"$cluster",namespace=~"$namespace",pod=~"$pod"} '
                             + "* on (namespace,pod,container) group_left (reason) "
                             + 'kube_pod_container_status_last_terminated_reason{cluster=~"$cluster",namespace=~"$namespace",pod=~"$pod",reason!~"Completed"}'
-                            + ")[$__rate_interval]) > 0",
+                            + ")[$__rate_interval]) > bool 0) > 0",
                             "[{{reason}}] {{container}} {{pod}}",
                         ),
                     ],
@@ -97,52 +97,52 @@ def _(outer_panels: Panels):
                     "",
                     [
                         panels.target(
-                            f"({metric('storage_current_version_id')} - {metric('storage_checkpoint_version_id')}) >= 100",
+                            f"(({metric('storage_current_version_id')} - {metric('storage_checkpoint_version_id')}) >= bool 100) > 0",
                             "Lagging Version (checkpoint)",
                         ),
                         panels.target(
-                            f"({metric('storage_current_version_id')} - {metric('storage_min_pinned_version_id')}) >= 100",
+                            f"(({metric('storage_current_version_id')} - {metric('storage_min_pinned_version_id')}) >= bool 100) > 0",
                             "Lagging Version (pinned)",
                         ),
                         panels.target(
-                            f"sum(label_replace({metric('storage_level_total_file_size')}, 'L0', 'L0', 'level_index', '.*_L0') unless "
-                            + f"{metric('storage_level_total_file_size')}) by (L0) >= 52428800",
+                            f"((sum(label_replace({metric('storage_level_total_file_size')}, 'L0', 'L0', 'level_index', '.*_L0') unless "
+                            + f"{metric('storage_level_total_file_size')}) by (L0)) >= bool 52428800) > 0",
                             "Lagging Compaction",
                         ),
                         panels.target(
-                            f"{metric('storage_stale_object_count')} >= 200",
+                            f"({metric('storage_stale_object_count')} >= bool 200) > 0",
                             "Lagging Vacuum",
                         ),
                         panels.target(
-                            f"{metric('state_store_meta_cache_usage_ratio')} >= 1.1",
+                            f"({metric('state_store_meta_cache_usage_ratio')} >= bool 1.1) > 0",
                             "Abnormal Meta Cache Memory",
                         ),
                         panels.target(
-                            f"{metric('state_store_block_cache_usage_ratio')} >= 1.1",
+                            f"({metric('state_store_block_cache_usage_ratio')} >= bool 1.1) > 0",
                             "Abnormal Block Cache Memory",
                         ),
                         panels.target(
-                            f"{metric('state_store_uploading_memory_usage_ratio')} >= 0.7",
+                            f"({metric('state_store_uploading_memory_usage_ratio')} >= bool 0.7) > 0",
                             "Abnormal Uploading Memory Usage",
                         ),
                         panels.target(
-                            f"{metric('storage_write_stop_compaction_groups')} > 0",
+                            f"({metric('storage_write_stop_compaction_groups')} > bool 0) > 0",
                             "Write Stall (group {{compaction_group_id}})",
                         ),
                         panels.target(
-                            f"{metric('storage_version_size')} >= 314572800",
+                            f"({metric('storage_version_size')} >= bool 314572800) > 0",
                             "Abnormal Version Size",
                         ),
                         panels.target(
-                            f"{metric('storage_delta_log_count')} >= 5000",
+                            f"({metric('storage_delta_log_count')} >= bool 5000) > 0",
                             "Abnormal Delta Log Number",
                         ),
                         panels.target(
-                            f"{metric('state_store_event_handler_pending_event')} >= 10000000",
+                            f"({metric('state_store_event_handler_pending_event')} >= bool 10000000) > 0",
                             "Abnormal Pending Event Number",
                         ),
                         panels.target(
-                            f"sum(rate({metric('object_store_failure_count')}[$__rate_interval])) by (type) > 0",
+                            f"(sum(rate({metric('object_store_failure_count')}[$__rate_interval])) by (type) > bool 0) > 0",
                             "Abnormal Object Storage Failure ({{type}})",
                         ),
                     ],
