@@ -1,6 +1,13 @@
 from ..common import *
 from . import section
-from .streaming_common import _actor_busy_rate_target, _actor_busy_time_relative_target
+from .streaming_common import (
+    _actor_busy_rate_expr,
+    _actor_busy_rate_target,
+    _actor_busy_time_relative_target,
+)
+
+def _fragment_topk_percent_expr(expr: str) -> str:
+    return f"topk(10, ({expr}) * 100)"
 
 @section
 def _(outer_panels: Panels):
@@ -8,10 +15,83 @@ def _(outer_panels: Panels):
     # We use this filter to suppress the actor-level panels if applicable.
     actor_level_filter = "actor_id!=''"
     panels = outer_panels.sub_panel()
+    poll_duration_expr = (
+        f"sum(rate({metric('stream_actor_poll_duration')}[$__rate_interval])) by (fragment_id)"
+        f"/ on(fragment_id) sum({metric('stream_actor_count')}) by (fragment_id)"
+    )
+    idle_duration_expr = (
+        f"sum(rate({metric('stream_actor_idle_duration')}[$__rate_interval])) by (fragment_id)"
+        f"/ on(fragment_id) sum({metric('stream_actor_count')}) by (fragment_id)"
+    )
+    scheduled_duration_expr = (
+        f"sum(rate({metric('stream_actor_scheduled_duration')}[$__rate_interval])) by (fragment_id)"
+        f"/ on(fragment_id) sum({metric('stream_actor_count')}) by (fragment_id)"
+    )
     return [
         outer_panels.row_collapsed(
             "Streaming Fragments",
             [
+                panels.subheader("Overview"),
+                panels.table_info(
+                    "Top Fragments by Busy Rate",
+                    "Top 10 fragments with the highest busy rate (%).",
+                    [
+                        panels.table_target(
+                            _fragment_topk_percent_expr(
+                                _actor_busy_rate_expr("$__rate_interval")
+                            )
+                        )
+                    ],
+                    ["fragment_id", "Value"],
+                    dict.fromkeys(["Time"], True),
+                    {"Value": "rate"},
+                    "percent",
+                ),
+                panels.table_info(
+                    "Top Fragments by CPU",
+                    "Top 10 fragments with the highest CPU rate (%).",
+                    [
+                        panels.table_target(
+                            _fragment_topk_percent_expr(
+                                f"{poll_duration_expr} / 1000000000"
+                            )
+                        )
+                    ],
+                    ["fragment_id", "Value"],
+                    dict.fromkeys(["Time"], True),
+                    {"Value": "rate"},
+                    "percent",
+                ),
+                panels.table_info(
+                    "Top Fragments by Idle Time",
+                    "Top 10 fragments with the highest idle time rate (%).",
+                    [
+                        panels.table_target(
+                            _fragment_topk_percent_expr(
+                                f"{idle_duration_expr} / 1000000000"
+                            )
+                        )
+                    ],
+                    ["fragment_id", "Value"],
+                    dict.fromkeys(["Time"], True),
+                    {"Value": "rate"},
+                    "percent",
+                ),
+                panels.table_info(
+                    "Top Fragments by Scheduling Delay",
+                    "Top 10 fragments with the highest scheduling delay rate (%).",
+                    [
+                        panels.table_target(
+                            _fragment_topk_percent_expr(
+                                f"{scheduled_duration_expr} / 1000000000"
+                            )
+                        )
+                    ],
+                    ["fragment_id", "Value"],
+                    dict.fromkeys(["Time"], True),
+                    {"Value": "rate"},
+                    "percent",
+                ),
                 panels.subheader("Busy Rate (IO + CPU Usage) by Fragment"),
                 panels.timeseries_percentage(
                     "Actor Busy Rate",

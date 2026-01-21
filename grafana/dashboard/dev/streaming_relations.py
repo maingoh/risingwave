@@ -46,14 +46,6 @@ def _(outer_panels: Panels):
         f"sum(rate({metric('stream_actor_poll_duration')}[$__rate_interval])) by (fragment_id) "
         f"/ on(fragment_id) sum({metric('stream_actor_count')}) by (fragment_id)"
     )
-    idle_duration_expr = (
-        f"sum(rate({metric('stream_actor_idle_duration')}[$__rate_interval])) by (fragment_id) "
-        f"/ on(fragment_id) sum({metric('stream_actor_count')}) by (fragment_id)"
-    )
-    scheduled_duration_expr = (
-        f"sum(rate({metric('stream_actor_scheduled_duration')}[$__rate_interval])) by (fragment_id) "
-        f"/ on(fragment_id) sum({metric('stream_actor_count')}) by (fragment_id)"
-    )
     return [
         outer_panels.row_collapsed(
             "Streaming Relation Metrics",
@@ -79,36 +71,6 @@ def _(outer_panels: Panels):
                         panels.table_target(
                             _relation_topk_percent_expr(
                                 f"{_sum_fragment_metric_by_mv(poll_duration_expr)} / 1000000000"
-                            )
-                        )
-                    ],
-                    ["name", "id", "type", "Value"],
-                    dict.fromkeys(["Time"], True),
-                    {"Value": "rate"},
-                    "percent",
-                ),
-                panels.table_info(
-                    "Top Relations by Scheduling Delay",
-                    "Top 10 relations with the highest scheduling delay rate (%).",
-                    [
-                        panels.table_target(
-                            _relation_topk_percent_expr(
-                                f"{_sum_fragment_metric_by_mv(scheduled_duration_expr)} / 1000000000"
-                            )
-                        )
-                    ],
-                    ["name", "id", "type", "Value"],
-                    dict.fromkeys(["Time"], True),
-                    {"Value": "rate"},
-                    "percent",
-                ),
-                panels.table_info(
-                    "Top Relations by Idle Time",
-                    "Top 10 relations with the highest idle time rate (%).",
-                    [
-                        panels.table_target(
-                            _relation_topk_percent_expr(
-                                f"{_sum_fragment_metric_by_mv(idle_duration_expr)} / 1000000000"
                             )
                         )
                     ],
