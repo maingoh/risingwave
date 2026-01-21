@@ -487,6 +487,7 @@ class Panels:
         columns,
         excludeByName=dict.fromkeys(["Time", "Value"], True),
         renameByName=None,
+        unit="",
     ):
         gridPos = self.layout.next_one_third_width_graph()
         column_indices = {column: index for index, column in enumerate(columns)}
@@ -511,6 +512,7 @@ class Panels:
             showHeader=True,
             filterable=True,
             transformations=transformations,
+            unit=unit,
         )
 
     def subheader(self, title="", content="", height=1):

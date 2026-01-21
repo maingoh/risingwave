@@ -70,6 +70,7 @@ def _(outer_panels: Panels):
                     ["name", "id", "type", "Value"],
                     dict.fromkeys(["Time"], True),
                     {"Value": "rate"},
+                    "percent",
                 ),
                 panels.table_info(
                     "Top Relations by CPU Time",
@@ -84,6 +85,7 @@ def _(outer_panels: Panels):
                     ["name", "id", "type", "Value"],
                     dict.fromkeys(["Time"], True),
                     {"Value": "rate"},
+                    "percent",
                 ),
                 panels.table_info(
                     "Top Relations by Scheduling Delay",
@@ -98,6 +100,7 @@ def _(outer_panels: Panels):
                     ["name", "id", "type", "Value"],
                     dict.fromkeys(["Time"], True),
                     {"Value": "rate"},
+                    "percent",
                 ),
                 panels.table_info(
                     "Top Relations by Idle Time",
@@ -112,6 +115,7 @@ def _(outer_panels: Panels):
                     ["name", "id", "type", "Value"],
                     dict.fromkeys(["Time"], True),
                     {"Value": "rate"},
+                    "percent",
                 ),
                 panels.subheader("CPU Usage By Relation"),
                 panels.timeseries_percentage(
