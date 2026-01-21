@@ -30,15 +30,15 @@ def _(outer_panels: Panels):
                     "",
                     [
                         panels.target(
-                            alert_threshold(metric("all_barrier_nums"), 200),
-                            "Too Many Barriers {{database_id}}",
-                        ),
-                        panels.target(
                             alert_when(
                                 f"sum(rate({metric('recovery_latency_count')}[$__rate_interval])) by (recovery_type) + "
                                 + f"sum(rate({metric('recovery_failure_cnt')}[$__rate_interval])) by (recovery_type)"
                             ),
                             "Recovery Triggered {{recovery_type}}",
+                        ),
+                        panels.target(
+                            alert_threshold(metric("all_barrier_nums"), 200),
+                            "Too Many Barriers {{database_id}}",
                         ),
                     ],
                     ["last"],
