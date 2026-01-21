@@ -62,7 +62,8 @@ def _(outer_panels: Panels):
                     ["name", "id", "type", "Value"],
                     dict.fromkeys(["Time"], True),
                     {"Value": "rate"},
-                    "percent",
+                    "",
+                    {"rate": "percent"},
                 ),
                 panels.table_info(
                     "Top Relations by CPU Time",
@@ -77,7 +78,8 @@ def _(outer_panels: Panels):
                     ["name", "id", "type", "Value"],
                     dict.fromkeys(["Time"], True),
                     {"Value": "rate"},
-                    "percent",
+                    "",
+                    {"rate": "percent"},
                 ),
                 panels.subheader("CPU Usage By Relation"),
                 panels.timeseries_percentage(

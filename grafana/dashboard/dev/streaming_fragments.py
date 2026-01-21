@@ -45,7 +45,8 @@ def _(outer_panels: Panels):
                     ["fragment_id", "Value"],
                     dict.fromkeys(["Time"], True),
                     {"Value": "rate"},
-                    "percent",
+                    "",
+                    {"rate": "percent"},
                 ),
                 panels.table_info(
                     "Top Fragments by CPU",
@@ -60,7 +61,8 @@ def _(outer_panels: Panels):
                     ["fragment_id", "Value"],
                     dict.fromkeys(["Time"], True),
                     {"Value": "rate"},
-                    "percent",
+                    "",
+                    {"rate": "percent"},
                 ),
                 panels.table_info(
                     "Top Fragments by Idle Time",
@@ -75,7 +77,8 @@ def _(outer_panels: Panels):
                     ["fragment_id", "Value"],
                     dict.fromkeys(["Time"], True),
                     {"Value": "rate"},
-                    "percent",
+                    "",
+                    {"rate": "percent"},
                 ),
                 panels.table_info(
                     "Top Fragments by Scheduling Delay",
@@ -90,7 +93,8 @@ def _(outer_panels: Panels):
                     ["fragment_id", "Value"],
                     dict.fromkeys(["Time"], True),
                     {"Value": "rate"},
-                    "percent",
+                    "",
+                    {"rate": "percent"},
                 ),
                 panels.subheader("Busy Rate (IO + CPU Usage) by Fragment"),
                 panels.timeseries_percentage(

@@ -488,6 +488,7 @@ class Panels:
         excludeByName=dict.fromkeys(["Time", "Value"], True),
         renameByName=None,
         unit="",
+        unitByName=None,
     ):
         gridPos = self.layout.next_one_third_width_graph()
         column_indices = {column: index for index, column in enumerate(columns)}
@@ -503,6 +504,15 @@ class Panels:
                 "options": organize_options,
             }
         ]
+        overrides = []
+        if unitByName:
+            for name, unit_value in unitByName.items():
+                overrides.append(
+                    {
+                        "matcher": {"id": "byName", "options": name},
+                        "properties": [{"id": "unit", "value": unit_value}],
+                    }
+                )
         return Table(
             title=title,
             dataSource=self.datasource,
@@ -513,6 +523,7 @@ class Panels:
             filterable=True,
             transformations=transformations,
             unit=unit,
+            overrides=overrides,
         )
 
     def subheader(self, title="", content="", height=1):
