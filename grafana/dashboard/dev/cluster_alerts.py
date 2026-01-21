@@ -80,7 +80,7 @@ def _(outer_panels: Panels):
                                 + 'kube_pod_container_status_last_terminated_timestamp{cluster=~"$cluster",namespace=~"$namespace",pod=~"$pod"} '
                                 + "* on (namespace,pod,container) group_left (reason) "
                                 + 'kube_pod_container_status_last_terminated_reason{cluster=~"$cluster",namespace=~"$namespace",pod=~"$pod",reason!~"Completed"}'
-                                + ")[$__rate_interval])"
+                                + ")[$__rate_interval:])"
                             ),
                             "[{{reason}}] {{container}} {{pod}}",
                         ),
