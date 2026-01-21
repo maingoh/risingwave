@@ -231,6 +231,8 @@ pub struct HummockReadVersion {
     table_id: TableId,
     instance_id: LocalInstanceId,
 
+    is_initialized: bool,
+
     /// Local version for staging data.
     staging: StagingVersion,
 
@@ -279,8 +281,8 @@ impl HummockReadVersion {
                                     .committed_epoch,
                             ))
                         }
-
                         WatermarkSerdeType::NonPkPrefix => None, /* do not fill the non-pk prefix watermark to index */
+                        WatermarkSerdeType::Value => None,
                     },
                     None => None,
                 }
@@ -296,6 +298,7 @@ impl HummockReadVersion {
 
             is_replicated,
             vnodes,
+            is_initialized: false,
         }
     }
 
@@ -312,7 +315,13 @@ impl HummockReadVersion {
         self.table_id
     }
 
+    pub fn init(&mut self) {
+        assert!(!self.is_initialized);
+        self.is_initialized = true;
+    }
+
     pub fn add_imm(&mut self, imm: ImmutableMemtable) {
+        assert!(self.is_initialized);
         if let Some(item) = self
             .staging
             .pending_imms
@@ -515,6 +524,10 @@ impl HummockReadVersion {
         self.table_watermarks
             .as_ref()
             .and_then(|watermark_index| watermark_index.latest_watermark(vnode))
+    }
+
+    pub fn is_initialized(&self) -> bool {
+        self.is_initialized
     }
 
     pub fn is_replicated(&self) -> bool {

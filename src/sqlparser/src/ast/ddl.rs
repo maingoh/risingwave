@@ -281,6 +281,8 @@ pub enum AlterSourceOperation {
     ResetConfig {
         keys: Vec<ObjectName>,
     },
+    /// `RESET` - Reset CDC source offset to latest
+    ResetSource,
     AlterConnectorProps {
         alter_props: Vec<SqlOption>,
     },
@@ -641,6 +643,9 @@ impl fmt::Display for AlterSourceOperation {
             }
             AlterSourceOperation::ResetConfig { keys } => {
                 write!(f, "RESET CONFIG ({})", display_comma_separated(keys))
+            }
+            AlterSourceOperation::ResetSource => {
+                write!(f, "RESET")
             }
             AlterSourceOperation::AlterConnectorProps { alter_props } => {
                 write!(
@@ -1048,7 +1053,7 @@ impl fmt::Display for ReferentialAction {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WebhookSourceInfo {
     pub secret_ref: Option<SecretRefValue>,
-    pub signature_expr: Expr,
+    pub signature_expr: Option<Expr>,
     pub wait_for_persistence: bool,
     pub is_batched: bool,
 }

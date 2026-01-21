@@ -538,6 +538,7 @@ steps:
       # Only upload zipped files, otherwise the logs is too much.
       - ./ci/plugins/upload-failure-logs-zipped
     timeout_in_minutes: 30
+    parallelism: 4
     retry: *auto-retry
 
   - label: "end-to-end test (deterministic simulation)"
@@ -711,7 +712,7 @@ steps:
           <<: *docker-compose
           run: source-test-env
       - ./ci/plugins/upload-failure-logs
-    timeout_in_minutes: 30
+    timeout_in_minutes: 35
 
   - label: "e2e standalone binary test"
     command: "ci/scripts/e2e-test-serial.sh -p ci-dev -m standalone"

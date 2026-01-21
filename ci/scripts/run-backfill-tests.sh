@@ -110,11 +110,13 @@ test_snapshot_and_upstream_read() {
   # Provide snapshot
   run_sql_file "$PARENT_PATH"/sql/backfill/basic/insert.sql
 
+  run_sql "alter table t1 set dml_rate_limit = 10"
+
   # Provide updates ...
   run_sql_file "$PARENT_PATH"/sql/backfill/basic/insert.sql &
 
   # ... and concurrently create mv.
-  run_sql_file "$PARENT_PATH"/sql/backfill/basic/create_mv.sql &
+  run_sql_file "$PARENT_PATH"/sql/backfill/basic/create_mv.sql && run_sql "alter table t1 set dml_rate_limit = default" &
 
   wait
 
@@ -327,7 +329,7 @@ test_snapshot_backfill() {
 
   sqllogictest -p 4566 -d dev 'e2e_test/backfill/snapshot_backfill/drop_nexmark_table.slt'
 
-  sqllogictest -p 4566 -d dev 'e2e_test/backfill/snapshot_backfill/failed_tests.slt' --label snapshot-backfill
+  sqllogictest -p 4566 -d dev 'e2e_test/backfill/snapshot_backfill/failed_tests.slt'
 
   kill_cluster
 }
