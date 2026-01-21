@@ -486,16 +486,20 @@ class Panels:
         targets,
         columns,
         excludeByName=dict.fromkeys(["Time", "Value"], True),
+        renameByName=None,
     ):
         gridPos = self.layout.next_one_third_width_graph()
         column_indices = {column: index for index, column in enumerate(columns)}
+        organize_options = {
+            "indexByName": column_indices,
+            "excludeByName": excludeByName,
+        }
+        if renameByName:
+            organize_options["renameByName"] = renameByName
         transformations = [
             {
                 "id": "organize",
-                "options": {
-                    "indexByName": column_indices,
-                    "excludeByName": excludeByName,
-                },
+                "options": organize_options,
             }
         ]
         return Table(

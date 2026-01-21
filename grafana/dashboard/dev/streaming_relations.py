@@ -67,8 +67,9 @@ def _(outer_panels: Panels):
                             f"topk(10, ({_relation_busy_rate_expr('$__rate_interval')}) * 100)"
                         )
                     ],
-                    ["name", "id", "type", "rate"],
+                    ["name", "id", "type", "Value"],
                     dict.fromkeys(["Time"], True),
+                    {"Value": "rate"},
                 ),
                 panels.table_info(
                     "Top Relations by CPU Time",
@@ -80,8 +81,9 @@ def _(outer_panels: Panels):
                             )
                         )
                     ],
-                    ["name", "id", "type", "rate"],
+                    ["name", "id", "type", "Value"],
                     dict.fromkeys(["Time"], True),
+                    {"Value": "rate"},
                 ),
                 panels.table_info(
                     "Top Relations by Scheduling Delay",
@@ -93,8 +95,9 @@ def _(outer_panels: Panels):
                             )
                         )
                     ],
-                    ["name", "id", "type", "rate"],
+                    ["name", "id", "type", "Value"],
                     dict.fromkeys(["Time"], True),
+                    {"Value": "rate"},
                 ),
                 panels.table_info(
                     "Top Relations by Idle Time",
@@ -106,8 +109,9 @@ def _(outer_panels: Panels):
                             )
                         )
                     ],
-                    ["name", "id", "type", "rate"],
+                    ["name", "id", "type", "Value"],
                     dict.fromkeys(["Time"], True),
+                    {"Value": "rate"},
                 ),
                 panels.subheader("CPU Usage By Relation"),
                 panels.timeseries_percentage(
