@@ -270,12 +270,15 @@ iceberg_compaction_enable_dynamic_size_estimation = true
 iceberg_compaction_size_estimation_smoothing_factor = 0.3
 iceberg_compaction_pending_parallelism_budget_multiplier = 4.0
 iceberg_compaction_target_binpack_group_size_mb = 102400
+# shared_buffer_capacity_mb = 2048
 
 [storage.cache]
 vector_block_cache_capacity_mb = 16
 vector_block_cache_shard_num = 16
 vector_meta_cache_capacity_mb = 16
 vector_meta_cache_shard_num = 16
+# meta_cache_capacity_mb = 12264
+# block_cache_capacity_mb = 2048
 
 [storage.cache.block_cache_eviction]
 algorithm = "Lru"
