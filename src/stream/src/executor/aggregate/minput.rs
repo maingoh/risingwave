@@ -136,6 +136,7 @@ impl MaterializedInputState {
                 | PbAggKind::ArrayAgg
                 | PbAggKind::JsonbAgg
                 | PbAggKind::JsonbObjectAgg
+                | PbAggKind::MapAgg
                 | PbAggKind::PercentileCont
                 | PbAggKind::PercentileDisc
                 | PbAggKind::Mode,

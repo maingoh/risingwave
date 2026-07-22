@@ -147,7 +147,8 @@ impl Rule<Logical> for ApplyAggTransposeRule {
                         }
                         AggType::Builtin(PbAggKind::ArrayAgg
                         | PbAggKind::JsonbAgg
-                        | PbAggKind::JsonbObjectAgg)
+                        | PbAggKind::JsonbObjectAgg
+                        | PbAggKind::MapAgg)
                         | AggType::UserDefined(_)
                         | AggType::WrapScalar(_) => {
                             let input_ref = InputRef::new(pos_of_constant_column, DataType::Int32);

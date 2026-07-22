@@ -523,6 +523,7 @@ message AggCall {
     APPROX_PERCENTILE = 28;
     ARG_MIN = 29;
     ARG_MAX = 30;
+    MAP_AGG = 31;
     // user defined aggregate function
     USER_DEFINED = 100;
     // wraps a scalar function that takes a list as input as an aggregate function.

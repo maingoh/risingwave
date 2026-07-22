@@ -507,7 +507,9 @@ impl Agg<StreamPlanRef> {
                                     })
                                     .collect()
                             }
-                            AggType::Builtin(PbAggKind::JsonbObjectAgg) => agg_call
+                            AggType::Builtin(
+                                PbAggKind::JsonbObjectAgg | PbAggKind::MapAgg,
+                            ) => agg_call
                                 .order_by
                                 .iter()
                                 .map(|o| (o.order_type, o.column_index))
@@ -536,6 +538,7 @@ impl Agg<StreamPlanRef> {
                             | PbAggKind::ArrayAgg
                             | PbAggKind::JsonbAgg
                             | PbAggKind::JsonbObjectAgg
+                            | PbAggKind::MapAgg
                             | PbAggKind::PercentileCont
                             | PbAggKind::PercentileDisc
                             | PbAggKind::Mode,

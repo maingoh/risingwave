@@ -23,6 +23,7 @@ mod bool_or;
 mod first_last_value;
 mod general;
 mod jsonb_agg;
+mod map_agg;
 mod mode;
 mod percentile_cont;
 mod percentile_disc;

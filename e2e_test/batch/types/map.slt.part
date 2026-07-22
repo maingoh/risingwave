@@ -313,6 +313,28 @@ NULL
 
 # ---- MAP(subquery) and map_from_entries((subquery)) ----
 
+# Direct usage of the map_agg aggregate. Lowering of MAP(subquery) also
+# produces this aggregate under the hood.
+query ?
+select map_agg(k, v order by k) from (values ('a', 1), ('b', 2), ('c', 3)) as t(k, v);
+----
+{a:1,b:2,c:3}
+
+query ?
+select map_agg(k, v) from (values ('a', 1)) as t(k, v) where false;
+----
+NULL
+
+statement error map keys must not be NULL
+select map_agg(k, v) from (values (null::varchar, 1)) as t(k, v);
+
+statement error map keys must be unique
+select map_agg(k, v) from (values ('a', 1), ('a', 2)) as t(k, v);
+
+statement error invalid map key type
+select map_agg(k::float, v) from (values ('a', 1)) as t(k, v);
+
+
 statement ok
 create table __map_sub_t (k varchar, v int);
 

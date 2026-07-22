@@ -412,6 +412,7 @@ pub mod agg_types {
                     | PbAggKind::ArrayAgg
                     | PbAggKind::JsonbAgg
                     | PbAggKind::JsonbObjectAgg
+                    | PbAggKind::MapAgg
                     | PbAggKind::FirstValue
                     | PbAggKind::LastValue
                     | PbAggKind::PercentileCont
@@ -475,6 +476,7 @@ pub mod agg_types {
                     | PbAggKind::ArrayAgg
                     | PbAggKind::JsonbAgg
                     | PbAggKind::JsonbObjectAgg
+                    | PbAggKind::MapAgg
                     | PbAggKind::PercentileCont
                     | PbAggKind::PercentileDisc
                     | PbAggKind::Mode,
