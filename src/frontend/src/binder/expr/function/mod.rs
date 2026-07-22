@@ -27,7 +27,7 @@ use risingwave_expr::aggregate::AggType;
 use risingwave_expr::window_function::WindowFuncKind;
 use risingwave_sqlparser::ast::{
     self, Expr as AstExpr, Function, FunctionArg, FunctionArgExpr, FunctionArgList, Ident,
-    OrderByExpr, SecretRefAsType, Statement, Window,
+    OrderByExpr, Query, SecretRefAsType, SelectItem, SetExpr, Statement, Window,
 };
 use risingwave_sqlparser::parser::Parser;
 
@@ -37,8 +37,8 @@ use crate::catalog::OwnedByUserCatalog;
 use crate::catalog::function_catalog::FunctionCatalog;
 use crate::error::{ErrorCode, Result, RwError};
 use crate::expr::{
-    Expr, ExprImpl, ExprType, FunctionCall, FunctionCallWithLambda, InputRef, TableFunction,
-    TableFunctionType, UserDefinedFunction,
+    Expr, ExprImpl, ExprType, FunctionCall, FunctionCallWithLambda, InputRef, SubqueryKind,
+    TableFunction, TableFunctionType, UserDefinedFunction,
 };
 use crate::handler::privilege::ObjectCheckItem;
 
@@ -61,6 +61,30 @@ pub(super) fn is_sys_function_without_args(ident: &Ident) -> bool {
     SYS_FUNCTION_WITHOUT_ARGS
         .iter()
         .any(|e| ident.real_value().as_str() == *e && ident.quote_style().is_none())
+}
+
+/// Return the number of columns the projection of `query` produces, when it
+/// can be determined purely from the AST. Returns `None` for wildcards or
+/// projection shapes we can't statically inspect.
+fn count_static_projection_cols(query: &Query) -> Option<usize> {
+    fn count(set: &SetExpr) -> Option<usize> {
+        match set {
+            SetExpr::Select(s) => {
+                let mut n = 0;
+                for item in &s.projection {
+                    match item {
+                        SelectItem::UnnamedExpr(_) | SelectItem::ExprWithAlias { .. } => n += 1,
+                        _ => return None,
+                    }
+                }
+                Some(n)
+            }
+            SetExpr::Query(q) => count(&q.body),
+            SetExpr::SetOperation { left, .. } => count(left),
+            SetExpr::Values(v) => v.0.first().map(|row| row.len()),
+        }
+    }
+    count(&query.body)
 }
 
 macro_rules! reject_syntax {
@@ -150,6 +174,22 @@ impl Binder {
                 filter.as_deref(),
                 over.as_ref(),
             );
+        }
+
+        // Sugar: `map_from_entries((SELECT k, v FROM ...))` behaves like
+        // `MAP(SELECT k, v FROM ...)`, i.e. aggregates the subquery rows
+        // into a map with the first column as key and the second as value.
+        // We only rewrite when the projection statically produces exactly two
+        // columns; anything else (single-column scalar subquery, wildcards,
+        // set operations we can't statically inspect) falls through to the
+        // normal `map_from_entries(<list-of-struct>)` binding path.
+        if func_name == "map_from_entries"
+            && arg_list.args.len() == 1
+            && let FunctionArg::Unnamed(FunctionArgExpr::Expr(Expr::Subquery(q))) =
+                &arg_list.args[0]
+            && count_static_projection_cols(q) == Some(2)
+        {
+            return self.bind_subquery_expr(q, SubqueryKind::Map);
         }
 
         // Bind function arguments. Secret references are bound as ExprImpl::SecretRef first,

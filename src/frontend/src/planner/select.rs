@@ -432,6 +432,7 @@ impl Planner {
                     self.create_exists(subroot.into_unordered_subplan())?
                 }
                 SubqueryKind::Array => subroot.into_array_agg()?,
+                SubqueryKind::Map => subroot.into_map_agg()?,
                 _ => bail_not_implemented!(issue = 1343, "{:?}", subquery.kind),
             };
 
@@ -542,6 +543,7 @@ impl Planner {
                     self.create_exists(subroot.into_unordered_subplan())?
                 }
                 SubqueryKind::Array => subroot.into_array_agg()?,
+                SubqueryKind::Map => subroot.into_map_agg()?,
                 _ => bail_not_implemented!(issue = 1343, "{:?}", subquery.kind),
             };
             if right.is_none() {

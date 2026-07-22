@@ -385,9 +385,10 @@ impl QueryRewriter<'_> {
                 self.visit_expr(expr2);
             }
             Expr::Function(function) => self.visit_function(function),
-            Expr::Exists(query) | Expr::Subquery(query) | Expr::ArraySubquery(query) => {
-                self.visit_query(query)
-            }
+            Expr::Exists(query)
+            | Expr::Subquery(query)
+            | Expr::ArraySubquery(query)
+            | Expr::MapSubquery(query) => self.visit_query(query),
 
             Expr::GroupingSets(exprs_vec) | Expr::Cube(exprs_vec) | Expr::Rollup(exprs_vec) => {
                 for exprs in exprs_vec {

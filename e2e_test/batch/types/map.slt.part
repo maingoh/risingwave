@@ -309,3 +309,73 @@ query ?
 select map_from_entries(null::struct<key int, value int>[]);
 ----
 NULL
+
+
+# ---- MAP(subquery) and map_from_entries((subquery)) ----
+
+statement ok
+create table __map_sub_t (k varchar, v int);
+
+statement ok
+insert into __map_sub_t values ('a', 1), ('b', 2), ('c', 3);
+
+query ?
+select map(select k, v from __map_sub_t order by k);
+----
+{a:1,b:2,c:3}
+
+query ?
+select map_from_entries((select k, v from __map_sub_t order by k));
+----
+{a:1,b:2,c:3}
+
+# Empty subquery aggregates to an empty map (not NULL).
+query ?
+select map(select k, v from __map_sub_t where false);
+----
+{}
+
+query ?
+select map_from_entries((select k, v from __map_sub_t where false));
+----
+{}
+
+# Correlated MAP subquery.
+statement ok
+create table __map_sub_outer (id int);
+
+statement ok
+insert into __map_sub_outer values (1), (2);
+
+query I?
+select id,
+       map(select k, v * o.id from __map_sub_t order by k) as m
+from __map_sub_outer o
+order by id;
+----
+1 {a:1,b:2,c:3}
+2 {a:2,b:4,c:6}
+
+# Wrong column count is rejected.
+statement error Subquery must return exactly 2 columns
+select map(select k from __map_sub_t);
+
+statement error Subquery must return exactly 2 columns
+select map(select k, v, v from __map_sub_t);
+
+# Invalid key type is rejected.
+statement error invalid map key type
+select map(select v::float, k from __map_sub_t);
+
+# Single-column subquery still falls through to the scalar map_from_entries binding
+# (list<struct> argument), preserving prior behavior.
+query ?
+select map_from_entries((select array[row('x', 1), row('y', 2)]));
+----
+{x:1,y:2}
+
+statement ok
+drop table __map_sub_outer;
+
+statement ok
+drop table __map_sub_t;

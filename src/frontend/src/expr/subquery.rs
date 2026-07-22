@@ -14,7 +14,7 @@
 
 use std::hash::Hash;
 
-use risingwave_common::types::{DataType, StructType};
+use risingwave_common::types::{DataType, MapType, StructType};
 
 use super::{Expr, ExprImpl, ExprType};
 use crate::binder::{BoundQuery, UNNAMED_COLUMN};
@@ -37,6 +37,9 @@ pub enum SubqueryKind {
     All(ExprImpl, ExprType),
     /// Expression operator `ARRAY` subquery.
     Array,
+    /// `MAP(subquery)` — subquery returning exactly two columns interpreted as
+    /// (key, value) pairs of the resulting map.
+    Map,
 }
 
 /// Subquery expression.
@@ -58,6 +61,7 @@ impl Subquery {
                 expr.has_correlated_input_ref_by_depth(depth)
             }
             SubqueryKind::Array
+            | SubqueryKind::Map
             | SubqueryKind::Scalar
             | SubqueryKind::UpdateSet
             | SubqueryKind::Existential => false,
@@ -72,6 +76,7 @@ impl Subquery {
                 expr.has_correlated_input_ref_by_correlated_id(correlated_id)
             }
             SubqueryKind::Array
+            | SubqueryKind::Map
             | SubqueryKind::Scalar
             | SubqueryKind::UpdateSet
             | SubqueryKind::Existential => false,
@@ -100,6 +105,7 @@ impl Subquery {
                 );
             }
             SubqueryKind::Array
+            | SubqueryKind::Map
             | SubqueryKind::Scalar
             | SubqueryKind::UpdateSet
             | SubqueryKind::Existential => {
@@ -149,6 +155,15 @@ impl Expr for Subquery {
                 let types = self.query.data_types();
                 assert_eq!(types.len(), 1, "Subquery with more than one column");
                 DataType::list(types[0].clone())
+            }
+            SubqueryKind::Map => {
+                let types = self.query.data_types();
+                assert_eq!(
+                    types.len(),
+                    2,
+                    "Map subquery must return exactly two columns"
+                );
+                MapType::from_kv(types[0].clone(), types[1].clone()).into()
             }
             _ => DataType::Boolean,
         }
