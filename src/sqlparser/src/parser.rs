@@ -648,6 +648,13 @@ impl Parser<'_> {
                 }
                 Keyword::ARRAY if self.peek_token() == Token::LBracket => self.parse_array_expr(),
                 Keyword::MAP if self.peek_token() == Token::LBrace => self.parse_map_expr(),
+                Keyword::MAP if self.peek_token() == Token::LParen => {
+                    // similar to `array(subquery)`
+                    self.expect_token(&Token::LParen)?;
+                    let node = Expr::MapSubquery(Box::new(self.parse_query()?));
+                    self.expect_token(&Token::RParen)?;
+                    Ok(node)
+                }
                 // `LEFT` and `RIGHT` are reserved as identifier but okay as function
                 Keyword::LEFT | Keyword::RIGHT => {
                     *self = checkpoint;

@@ -303,6 +303,70 @@ impl LogicalPlanRoot {
         ))
     }
 
+    /// Transform the [`PlanRoot`] wrapped in a map-construction subquery
+    /// (`MAP(SELECT k, v FROM ...)`) to a [`PlanRef`] that aggregates the
+    /// (key, value) rows into `list<struct<key, value>>` and then feeds the
+    /// list to `map_from_entries`.
+    pub fn into_map_agg(self) -> Result<LogicalPlanRef> {
+        use generic::Agg;
+        use plan_node::PlanAggCall;
+        use risingwave_common::types::{ListValue, MapType, StructType};
+        use risingwave_expr::aggregate::PbAggKind;
+
+        use crate::expr::{ExprImpl, ExprType, FunctionCall, InputRef};
+        use crate::utils::{Condition, IndexSet};
+
+        let selected: Vec<usize> = self.out_fields.ones().collect();
+        if selected.len() != 2 {
+            bail!("map subquery must return exactly two columns");
+        }
+        let fields = self.plan.schema().fields();
+        let key_type = fields[selected[0]].data_type();
+        let value_type = fields[selected[1]].data_type();
+        let struct_type =
+            DataType::Struct(MapType::struct_type_for_map(key_type.clone(), value_type.clone()));
+        let list_type = DataType::list(struct_type.clone());
+        let map_type: DataType = MapType::from_kv(key_type.clone(), value_type.clone()).into();
+
+        // ROW(key, value) projected as the sole column, then array_agg into list<struct>.
+        let row_expr: ExprImpl = FunctionCall::new_unchecked(
+            ExprType::Row,
+            vec![
+                InputRef::new(selected[0], key_type).into(),
+                InputRef::new(selected[1], value_type).into(),
+            ],
+            struct_type.clone(),
+        )
+        .into();
+        let projected = LogicalProject::create(self.plan, vec![row_expr]);
+
+        let agg = Agg::new(
+            vec![PlanAggCall {
+                agg_type: PbAggKind::ArrayAgg.into(),
+                return_type: list_type.clone(),
+                inputs: vec![InputRef::new(0, struct_type.clone())],
+                distinct: false,
+                order_by: self.required_order.column_orders,
+                filter: Condition::true_cond(),
+                direct_args: vec![],
+            }],
+            IndexSet::empty(),
+            projected,
+        );
+
+        // Coalesce empty aggregation result to an empty list, then wrap with map_from_entries.
+        let list_ref: ExprImpl = InputRef::new(0, list_type.clone()).into();
+        let empty_list = ExprImpl::literal_list(ListValue::empty(&struct_type), struct_type);
+        let coalesced: ExprImpl =
+            FunctionCall::new(ExprType::Coalesce, vec![list_ref, empty_list])
+                .unwrap()
+                .into();
+        let map_call: ExprImpl =
+            FunctionCall::new_unchecked(ExprType::MapFromEntries, vec![coalesced], map_type)
+                .into();
+        Ok(LogicalProject::create(agg.into(), vec![map_call]))
+    }
+
     /// Apply logical optimization to the plan for stream.
     pub fn gen_optimized_logical_plan_for_stream(mut self) -> Result<LogicalPlanRoot> {
         self.plan = LogicalOptimizer::gen_optimized_logical_plan_for_stream(self.plan.clone())?;

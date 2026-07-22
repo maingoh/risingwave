@@ -12,19 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use risingwave_common::types::MapType;
 use risingwave_sqlparser::ast::Query;
 
 use crate::binder::Binder;
-use crate::error::{Result, bail_bind_error};
+use crate::error::{ErrorCode, Result, bail_bind_error};
 use crate::expr::{ExprImpl, Subquery, SubqueryKind};
 
 impl Binder {
     pub fn bind_subquery_expr(&mut self, query: &Query, kind: SubqueryKind) -> Result<ExprImpl> {
         let query = self.bind_query(query)?;
-        if !matches!(kind, SubqueryKind::Existential | SubqueryKind::UpdateSet)
-            && query.data_types().len() != 1
+        let expected_columns = match kind {
+            SubqueryKind::Existential | SubqueryKind::UpdateSet => None,
+            SubqueryKind::Map => Some(2),
+            _ => Some(1),
+        };
+        if let Some(n) = expected_columns
+            && query.data_types().len() != n
         {
-            bail_bind_error!("Subquery must return only one column");
+            if n == 1 {
+                bail_bind_error!("Subquery must return only one column");
+            } else {
+                bail_bind_error!("Subquery must return exactly {} columns", n);
+            }
+        }
+        if matches!(kind, SubqueryKind::Map) {
+            let types = query.data_types();
+            MapType::try_from_kv(types[0].clone(), types[1].clone()).map_err(ErrorCode::BindError)?;
         }
         Ok(Subquery::new(query, kind).into())
     }

@@ -515,6 +515,8 @@ pub enum Expr {
     Array(Array),
     /// An array constructing subquery `ARRAY(SELECT 2 UNION SELECT 3)`
     ArraySubquery(Box<Query>),
+    /// A map constructing subquery `MAP(SELECT key_col, value_col FROM t)`
+    MapSubquery(Box<Query>),
     /// A subscript expression `arr[1]` or `map['a']`
     Index {
         obj: Box<Expr>,
@@ -827,6 +829,7 @@ impl fmt::Display for Expr {
             }
             Expr::Array(exprs) => write!(f, "{}", exprs),
             Expr::ArraySubquery(s) => write!(f, "ARRAY ({})", s),
+            Expr::MapSubquery(s) => write!(f, "MAP ({})", s),
             Expr::LambdaFunction { args, body } => {
                 write!(
                     f,

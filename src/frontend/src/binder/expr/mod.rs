@@ -222,6 +222,7 @@ impl Binder {
             Expr::Parameter { index } => self.bind_parameter(*index),
             Expr::Collate { expr, collation } => self.bind_collate(expr, collation),
             Expr::ArraySubquery(q) => self.bind_subquery_expr(q, SubqueryKind::Array),
+            Expr::MapSubquery(q) => self.bind_subquery_expr(q, SubqueryKind::Map),
             Expr::Map { entries } => self.bind_map(entries),
             Expr::IsJson {
                 unique_keys: true, ..
