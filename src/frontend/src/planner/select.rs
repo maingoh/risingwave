@@ -435,13 +435,34 @@ impl Planner {
                 _ => bail_not_implemented!(issue = 1343, "{:?}", subquery.kind),
             };
 
+            // For `SubqueryKind::Array`, `into_array_agg` builds a scalar aggregate
+            // that always produces exactly one row (`Coalesce(array_agg, ARRAY[])`
+            // converts the empty-input `NULL` to `[]`). After decorrelation via
+            // `TranslateApplyRule` + `ApplyAggTransposeRule`, the right side becomes
+            // a group-by aggregate over the `Domain = Distinct(outer.correlated_cols)`
+            // relation, so every outer row has exactly one matching right-side row.
+            // `LeftOuter` and `Inner` are therefore semantically equivalent in batch.
+            //
+            // In streaming, however, `LeftOuter` causes `StreamHashJoin` to null-pad
+            // the outer row as soon as it arrives, even before the right-side aggregate
+            // for that key has caught up (cross/within-epoch race). The null-padded
+            // right-side column overwrites the pre-computed `Coalesce(array_agg,
+            // ARRAY[])` result with `NULL`, so downstream operators like
+            // `map_from_entries` propagate `NULL` transiently and non-nullable sinks
+            // silently drop the row. Using `Inner` makes the join wait for the
+            // right-side row to arrive, eliminating the transient NULL entirely.
+            let join_type = if matches!(subquery.kind, SubqueryKind::Array) {
+                JoinType::Inner
+            } else {
+                JoinType::LeftOuter
+            };
             root = Self::create_apply(
                 correlated_id,
                 correlated_indices,
                 root,
                 right,
                 ExprImpl::literal_bool(true),
-                JoinType::LeftOuter,
+                join_type,
                 true,
             );
         }
@@ -515,6 +536,7 @@ impl Planner {
             .collect();
 
         let mut right = None;
+        let mut all_array_subqueries = true;
 
         for subquery in rewriter.subqueries {
             let return_type = subquery.return_type();
@@ -544,6 +566,9 @@ impl Planner {
                 SubqueryKind::Array => subroot.into_array_agg()?,
                 _ => bail_not_implemented!(issue = 1343, "{:?}", subquery.kind),
             };
+            if !matches!(subquery.kind, SubqueryKind::Array) {
+                all_array_subqueries = false;
+            }
             if right.is_none() {
                 right = Some(subplan);
             } else {
@@ -566,13 +591,24 @@ impl Planner {
             correlated_indices.sort();
             correlated_indices.dedup();
 
+            // See the comment in `substitute_subqueries_in_left_deep_tree_way`:
+            // for `SubqueryKind::Array`, the decorrelated right side is guaranteed
+            // to produce exactly one row per outer key via the Domain relation, so
+            // `Inner` and `LeftOuter` are equivalent in batch. `Inner` avoids the
+            // streaming transient-NULL bug caused by `StreamHashJoin(LeftOuter)`
+            // null-padding the outer row before the right-side aggregate arrives.
+            let join_type = if all_array_subqueries {
+                JoinType::Inner
+            } else {
+                JoinType::LeftOuter
+            };
             Self::create_apply(
                 rewriter.correlated_id.expect("must have a correlated id"),
                 correlated_indices,
                 root,
                 right,
                 ExprImpl::literal_bool(true),
-                JoinType::LeftOuter,
+                join_type,
                 true,
             )
         } else {
