@@ -167,6 +167,13 @@ impl MaterializedInputState {
         })
     }
 
+    /// Mark the cache as synced with an empty state table, so that `get_output` won't scan the
+    /// state table. Must only be called when the group is known to have no rows in the state
+    /// table, i.e. before any chunk is applied to a brand-new group.
+    pub fn mark_synced_empty(&mut self) {
+        self.cache.begin_syncing().finish();
+    }
+
     /// Apply a chunk of data to the state cache.
     /// This method should never involve any state table operations.
     pub fn apply_chunk(&mut self, chunk: &StreamChunk) -> StreamExecutorResult<()> {

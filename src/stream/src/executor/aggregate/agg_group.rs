@@ -281,7 +281,7 @@ impl<S: StateStore, Strtg: Strategy> AggGroup<S, Strtg> {
 
         let mut states = Vec::with_capacity(agg_calls.len());
         for (idx, (agg_call, agg_func)) in agg_calls.iter().zip_eq_fast(agg_funcs).enumerate() {
-            let state = AggState::create(
+            let mut state = AggState::create(
                 version,
                 agg_call,
                 agg_func,
@@ -291,6 +291,17 @@ impl<S: StateStore, Strtg: Strategy> AggGroup<S, Strtg> {
                 extreme_cache_size,
                 input_schema,
             )?;
+            // A group without intermediate states is brand-new, so its materialized-input state
+            // tables have no rows for it either (rows are written and deleted together with the
+            // intermediate states in the same epoch). Mark the caches as synced-empty to skip the
+            // useless state table scan in `get_output`. Not applied for EOWC, where emitted groups
+            // are removed from the intermediate state table while materialized inputs may remain.
+            if !emit_on_window_close
+                && inter_states.is_none()
+                && let AggState::MaterializedInput(minput) = &mut state
+            {
+                minput.mark_synced_empty();
+            }
             states.push(state);
         }
 
@@ -622,5 +633,155 @@ impl AggStateCacheStats {
     fn merge(&mut self, other: Self) {
         self.agg_state_cache_lookup_count += other.agg_state_cache_lookup_count;
         self.agg_state_cache_miss_count += other.agg_state_cache_miss_count;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use risingwave_common::array::StreamChunk;
+    use risingwave_common::catalog::{ColumnDesc, ColumnId, Field, Schema, TableId};
+    use risingwave_common::test_prelude::StreamChunkTestExt;
+    use risingwave_common::types::DataType;
+    use risingwave_common::util::epoch::{EpochPair, test_epoch};
+    use risingwave_common::util::sort_util::OrderType;
+    use risingwave_expr::aggregate::{AggCall, build_retractable};
+    use risingwave_storage::memory::MemoryStateStore;
+
+    use super::*;
+    use crate::common::table::test_utils::gen_pbtable_with_value_indices;
+    use crate::executor::test_utils::agg_executor::create_agg_state_storage;
+
+    /// A brand-new group must not scan the materialized-input state table to produce its output.
+    #[tokio::test]
+    async fn test_new_group_skips_minput_state_scan() -> StreamExecutorResult<()> {
+        // input schema: (a: int4 group key, b: int4, _row_id: int8)
+        let input_schema = Schema::new(vec![
+            Field::unnamed(DataType::Int32),
+            Field::unnamed(DataType::Int32),
+            Field::unnamed(DataType::Int64),
+        ]);
+        let group_key_indices = [0];
+        let stream_key = vec![2];
+        let agg_calls = vec![
+            AggCall::from_pretty("(count:int8)"),
+            AggCall::from_pretty("(min:int4 $1:int4)"),
+        ];
+        let agg_funcs: Vec<_> = agg_calls.iter().map(build_retractable).try_collect()?;
+
+        let store = MemoryStateStore::new();
+        let mut storages = Vec::new();
+        for (idx, agg_call) in agg_calls.iter().enumerate() {
+            storages.push(
+                create_agg_state_storage(
+                    store.clone(),
+                    TableId::new(idx as u32),
+                    agg_call,
+                    &group_key_indices,
+                    &stream_key,
+                    input_schema.fields.clone(),
+                    false,
+                )
+                .await,
+            );
+        }
+        // intermediate state table: (group key, states...), pk = group key, values = states
+        let mut inter_table = StateTable::from_table_catalog_inconsistent_op(
+            &gen_pbtable_with_value_indices(
+                TableId::new(agg_calls.len() as u32),
+                vec![
+                    ColumnDesc::unnamed(ColumnId::new(0), DataType::Int32),
+                    ColumnDesc::unnamed(ColumnId::new(1), DataType::Int64),
+                    ColumnDesc::unnamed(ColumnId::new(2), DataType::Int32),
+                ],
+                vec![OrderType::ascending()],
+                vec![0],
+                0,
+                vec![1, 2],
+            ),
+            store,
+            None,
+        )
+        .await;
+
+        let mut epoch = EpochPair::new_test_epoch(test_epoch(1));
+        inter_table.init_epoch(epoch).await?;
+        for storage in &mut storages {
+            if let AggStateStorage::MaterializedInput { table, .. } = storage {
+                table.init_epoch(epoch).await?;
+            }
+        }
+
+        macro_rules! create {
+            () => {
+                AggGroup::<_, OnlyOutputIfHasInput>::create(
+                    PbAggNodeVersion::LATEST,
+                    Some(GroupKey::new(OwnedRow::new(vec![Some(1.into())]), None)),
+                    &agg_calls,
+                    &agg_funcs,
+                    &storages,
+                    &inter_table,
+                    &stream_key,
+                    0,
+                    false,
+                    1024,
+                    &input_schema,
+                )
+                .await?
+            };
+        }
+
+        let (mut group, stats) = create!();
+        assert_eq!(stats.agg_state_cache_miss_count, 0);
+        assert!(group.is_uninitialized());
+
+        let chunk = StreamChunk::from_pretty(
+            " i i I
+            + 1 5 100
+            + 1 3 101",
+        );
+        for storage in &mut storages {
+            if let AggStateStorage::MaterializedInput { table, mapping, .. } = storage {
+                table.write_chunk(chunk.project(mapping.upstream_columns()));
+            }
+        }
+        let vis = vec![Bitmap::ones(chunk.capacity()); agg_calls.len()];
+        group
+            .apply_chunk(&chunk, &agg_calls, &agg_funcs, vis)
+            .await?;
+
+        let states_change = group.build_states_change(&agg_funcs)?.unwrap();
+        inter_table.write_record(states_change);
+        let (change, stats) = group.build_outputs_change(&storages, &agg_funcs).await?;
+        let Some(Record::Insert { new_row }) = change else {
+            panic!("expected insert, got {change:?}");
+        };
+        assert_eq!(
+            new_row,
+            OwnedRow::new(vec![Some(1.into()), Some(2i64.into()), Some(3.into())])
+        );
+        assert_eq!(stats.agg_state_cache_lookup_count, 1);
+        assert_eq!(
+            stats.agg_state_cache_miss_count, 0,
+            "new group should not scan"
+        );
+
+        epoch.inc_for_test();
+        inter_table.commit_for_test(epoch).await?;
+        for storage in &mut storages {
+            if let AggStateStorage::MaterializedInput { table, .. } = storage {
+                table.commit_for_test(epoch).await?;
+            }
+        }
+
+        // An existing group must still be restored from the state table.
+        let (group, stats) = create!();
+        assert!(!group.is_uninitialized());
+        assert_eq!(stats.agg_state_cache_miss_count, 1);
+        assert_eq!(
+            group.prev_outputs,
+            Some(OwnedRow::new(vec![Some(2i64.into()), Some(3.into())]))
+        );
+
+        Ok(())
     }
 }
